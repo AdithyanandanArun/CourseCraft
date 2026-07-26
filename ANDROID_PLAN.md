@@ -1,4 +1,7 @@
-# Plan.md — Execution Roadmap (CourseCraft)
+# CourseCraft Android Delivery Guide
+
+The workspace-level roadmap is `../Plan.md`. This document keeps Android-specific implementation
+notes close to the Flutter application.
 
 > Companion to `Idea.md`. This is the **build order**: what to implement first, in what phases,
 > and how to verify each. Each phase is an independently demoable vertical slice. Build them in
@@ -8,12 +11,12 @@
 
 ## Architecture at a glance
 
-**Stack:** Flutter (iOS + Android) · Supabase (Auth + Postgres + Storage + Realtime) · Riverpod ·
+**Stack:** Flutter (Android) · Supabase (Auth + Postgres + Storage + Realtime) · Riverpod ·
 go_router · pure-Dart grading engine.
 
 | Concern | Choice | Why |
 |---|---|---|
-| UI | Flutter, single app, role-based | One codebase, both phones |
+| UI | Flutter Android, role-aware | Native Android student and advisor experience |
 | State | **Riverpod 3** (+ generator, lint) | Supabase streams → `AsyncValue`, auto-recompute SGPA |
 | Routing | **go_router** + auth/role guards | Declarative, deep-link ready |
 | Models | **freezed** + json_serializable | Immutable, codegen serialization |
@@ -27,9 +30,8 @@ go_router · pure-Dart grading engine.
 one Storage bucket `attachments` scoped per space · pairing via a `SECURITY DEFINER` RPC. No Edge
 Functions in v1.
 
-**v1 deliberately excludes:** advisor *remote* push (needs paid Apple account + APNs key),
-milestones/rewards, widgets, App Store release. Advisor "notifications" surface as **in-app
-messages** for now. iOS install is **free provisioning** (rebuild ~every 7 days; needs a Mac).
+**v1 deliberately excludes:** advisor remote push, milestones/rewards, widgets, and iOS release.
+Advisor notifications surface as in-app messages for now.
 
 ---
 
@@ -76,7 +78,7 @@ remaining assessments; flag mathematically unreachable subjects).
 ## Phases
 
 ### Phase 0 — Foundations & setup *(unblocks everything)*
-- Install Flutter toolchain; `flutter create` (iOS + Android).
+- Install Flutter toolchain; `flutter create` (Android).
 - Create Supabase project; wire `supabase_flutter`; env config for keys.
 - Add packages; set up Riverpod + go_router + freezed + clean-minimal theme tokens.
 - App shell: `ProviderScope`, router with auth guard, splash.
@@ -138,7 +140,6 @@ remaining assessments; flag mathematically unreachable subjects).
 ### Phase 10 — Motivation polish, hardening & distribution
 - Streaks & habits; clean-minimal theming pass; empty/error/offline states; Realtime + offline reconciliation.
 - Android: `flutter build apk` + sideload to your phone.
-- iOS: free-provisioning build (Mac + Xcode, ~7-day re-sign) onto her iPhone.
 - Seed her real next-semester subjects/credits/timetable.
 - **Verify:** clean install on both phones; full loop (timetable → attendance → marks → 9.5 dashboard → advisor task) works end to end.
 

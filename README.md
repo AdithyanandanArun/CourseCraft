@@ -1,14 +1,17 @@
-# CourseCraft
+# CourseCraft Android
 
-CourseCraft is a two-person academic coaching app: one student and one advisor, sharing a single academic workspace aimed at a 9.5 SGPA target.
+CourseCraft is an Android-first student academic tracker with optional advisor coaching. Core
+student workflows never depend on pairing an advisor.
 
-Current state: planning docs, Supabase Phase 0 schema, and a Flutter bootstrap script are present. The Flutter app skeleton has not been generated yet.
+This repository is the Flutter Android application and the canonical location for Supabase
+migrations. The companion React web app is maintained in the separate public `CourseCraft-Web`
+repository. The cross-platform roadmap is in the workspace root `Plan.md`.
 
 ## Source Map
 
 - `Idea.md` - product scope and constraints.
-- `Plan.md` - phased execution roadmap and planned architecture.
-- `scripts/bootstrap_phase0.sh` - creates the Flutter app in place and installs dependencies after Flutter/Android SDK are available.
+- `ANDROID_PLAN.md` - Android-specific delivery guide.
+- `scripts/bootstrap_phase0.sh` - creates the Android Flutter app in place and installs dependencies after Flutter/Android SDK are available.
 - `supabase/migrations/0001_init.sql` - initial Supabase schema, RLS policies, pairing RPC, and attachments bucket policies.
 
 ## Bootstrap
@@ -17,4 +20,4 @@ Current state: planning docs, Supabase Phase 0 schema, and a Flutter bootstrap s
 bash scripts/bootstrap_phase0.sh
 ```
 
-After bootstrap, continue with the Phase 0 app shell described in `Plan.md`.
+For local Supabase configuration, supply `SUPABASE_URL` and `SUPABASE_ANON_KEY` with Dart defines.

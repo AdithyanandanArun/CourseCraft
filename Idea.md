@@ -18,9 +18,8 @@ assign tasks, set targets, leave notes, and nudge her, all aimed at hitting **9.
 | **Student** | Your girlfriend | Logs attendance, marks, tasks, follows the timetable, watches her 9.5 progress |
 | **Advisor** | You | Views all her data, assigns/tracks tasks, sets goals & targets, leaves notes, sends reminders |
 
-Both run the **same app** on their own phone (her iPhone, your Android). On first launch each
-person picks a role. The two accounts are linked once via a **pairing code**, after which the
-advisor can see and act on the student's data.
+The student can use the Android app or the companion web app. Advisor access is optional and is
+unlocked through a **pairing code** only after both accounts choose to connect.
 
 ## 3. Core principles
 
@@ -101,7 +100,7 @@ advisor can see and act on the student's data.
 
 ## 5. Explicitly in scope vs later
 
-**v1 (build first):** roles + pairing, subjects/credits/weights, marks entry, predictor + 9.5
+**v1 (build first):** student auth, subjects/credits/weights, marks entry, predictor + 9.5
 back-calculator, SGPA + CGPA, per-class attendance with 75% logic, weekly timetable + exceptions,
 calendar with exams/assignments/holidays, tasks (all four types), advisor view + tasks + goals
 + notes, local notifications, in-app advisor messages, 9.5 dashboard, streaks, shared images via
@@ -112,11 +111,8 @@ account + APNs key, plus FCM/OneSignal or a Supabase Edge Function), milestones/
 home-screen widgets, App Store public release, richer analytics.
 
 ## 6. Constraints & realities (flagged honestly)
-- **iOS builds need a Mac.** Flutter can't compile/sign an iOS app without macOS + Xcode. For v1
-  we use **free provisioning**: install on her iPhone directly from Xcode, but the app **expires
-  every ~7 days** and must be re-deployed (clean rebuild). No $99/yr Apple account for now — the
-  tradeoff is that re-signing and the lack of remote push are accepted. Android just sideloads a
-  free APK, no Mac needed.
+- **Android and web are the current targets.** Android ships as an APK; the full web app deploys
+  to GitHub Pages. iOS is explicitly deferred.
 - **"Completely on device" is now hybrid.** Per your decisions, the backend is **Supabase**:
   Auth + Postgres tables + Storage + Realtime live in the cloud so two phones share state and you
   can advise remotely. Supabase's offline support means the app still works without signal and
