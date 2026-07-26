@@ -22,7 +22,8 @@ bash scripts/bootstrap_phase0.sh
 
 ## Supabase configuration
 
-Apply `supabase/migrations/0001_init.sql` and subsequent migrations to one Supabase project.
+Apply every file in `supabase/migrations/` to one Supabase project, in filename order. The Phase 1
+migration provisions a profile for every new account and a private student space for student roles.
 Then launch with the project URL and anonymous key supplied as Dart defines:
 
 ```bash
