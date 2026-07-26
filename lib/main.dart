@@ -12,6 +12,12 @@ import 'features/academics/domain/academic_models.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/domain/app_profile.dart';
 
+const _surface = Color(0xffe0e5ec);
+const _ink = Color(0xff3d4852);
+const _muted = Color(0xff6b7280);
+const _accent = Color(0xff6c63ff);
+const _shadowDark = Color(0xffa3b1c6);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const config = AppConfig.fromEnvironment();
@@ -33,8 +39,52 @@ class CourseCraftApp extends StatelessWidget {
         title: 'CourseCraft',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0b6e69)),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: _accent,
+            brightness: Brightness.light,
+            surface: _surface,
+          ),
           useMaterial3: true,
+          scaffoldBackgroundColor: _surface,
+          textTheme: ThemeData.light().textTheme.apply(
+            bodyColor: _ink,
+            displayColor: _ink,
+            fontFamily: 'sans-serif',
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: _surface,
+            foregroundColor: _ink,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: _surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            labelStyle: const TextStyle(color: _muted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: _accent, width: 2),
+            ),
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: _surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(32),
+            ),
+            elevation: 0,
+          ),
         ),
         home: config.isSupabaseConfigured
             ? AuthGate(repository: AuthRepository(Supabase.instance.client))
@@ -55,25 +105,24 @@ class ConfigurationScreen extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.cloud_off_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 42,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Connect CourseCraft',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Launch with SUPABASE_URL and SUPABASE_ANON_KEY Dart defines after applying the Supabase migrations.',
-                ),
-              ],
+            child: _SoftPanel(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _IconWell(icon: Icons.cloud_off_outlined, size: 26),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Connect CourseCraft',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Launch with SUPABASE_URL and SUPABASE_ANON_KEY Dart defines after applying the Supabase migrations.',
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -193,86 +242,85 @@ class _AuthScreenState extends State<AuthScreen> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'CourseCraft',
-                      style: Theme.of(context).textTheme.displaySmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _isSignUp
-                          ? 'Build your own academic system.'
-                          : 'Welcome back.',
-                    ),
-                    const SizedBox(height: 32),
-                    if (_isSignUp) ...[
+              child: _SoftPanel(
+                padding: const EdgeInsets.all(32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _BrandTitle(),
+                      const SizedBox(height: 8),
+                      Text(
+                        _isSignUp
+                            ? 'Build your own academic system.'
+                            : 'Welcome back.',
+                      ),
+                      const SizedBox(height: 32),
+                      if (_isSignUp) ...[
+                        TextFormField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(labelText: 'Name'),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter your name.'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'student',
+                              label: Text('Student'),
+                              icon: Icon(Icons.school_outlined),
+                            ),
+                            ButtonSegment(
+                              value: 'advisor',
+                              label: Text('Advisor'),
+                              icon: Icon(Icons.support_agent_outlined),
+                            ),
+                          ],
+                          selected: {_role},
+                          onSelectionChanged: (value) =>
+                              setState(() => _role = value.first),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       TextFormField(
-                        controller: _nameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(labelText: 'Name'),
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
+                        decoration: const InputDecoration(labelText: 'Email'),
                         validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? 'Enter your name.'
+                            value == null || !value.contains('@')
+                            ? 'Enter a valid email.'
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'student',
-                            label: Text('Student'),
-                            icon: Icon(Icons.school_outlined),
-                          ),
-                          ButtonSegment(
-                            value: 'advisor',
-                            label: Text('Advisor'),
-                            icon: Icon(Icons.support_agent_outlined),
-                          ),
-                        ],
-                        selected: {_role},
-                        onSelectionChanged: (value) =>
-                            setState(() => _role = value.first),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) =>
-                          value == null || !value.contains('@')
-                          ? 'Enter a valid email.'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      autofillHints: const [AutofillHints.password],
-                      decoration: const InputDecoration(labelText: 'Password'),
-                      validator: (value) => value == null || value.length < 8
-                          ? 'Use at least 8 characters.'
-                          : null,
-                    ),
-                    if (_message != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        _message!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        autofillHints: const [AutofillHints.password],
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
                         ),
+                        validator: (value) => value == null || value.length < 8
+                            ? 'Use at least 8 characters.'
+                            : null,
                       ),
-                    ],
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _isLoading ? null : _submit,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      if (_message != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          _message!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      _PrimaryButton(
+                        onPressed: _isLoading ? null : _submit,
                         child: Text(
                           _isLoading
                               ? 'Please wait...'
@@ -281,21 +329,21 @@ class _AuthScreenState extends State<AuthScreen> {
                               : 'Sign in',
                         ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => setState(() {
-                              _isSignUp = !_isSignUp;
-                              _message = null;
-                            }),
-                      child: Text(
-                        _isSignUp
-                            ? 'Already have an account? Sign in'
-                            : 'New to CourseCraft? Create an account',
+                      TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => setState(() {
+                                _isSignUp = !_isSignUp;
+                                _message = null;
+                              }),
+                        child: Text(
+                          _isSignUp
+                              ? 'Already have an account? Sign in'
+                              : 'New to CourseCraft? Create an account',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -331,31 +379,32 @@ class _ProfileGateState extends State<ProfileGate> {
       future: _profile,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: _SoftLoadingIndicator()));
         }
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('We could not prepare your workspace.'),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () => setState(
-                        () => _profile = widget.repository.ensureProfile(),
+                child: _SoftPanel(
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('We could not prepare your workspace.'),
+                      const SizedBox(height: 12),
+                      _PrimaryButton(
+                        onPressed: () => setState(
+                          () => _profile = widget.repository.ensureProfile(),
+                        ),
+                        child: const Text('Try again'),
                       ),
-                      child: const Text('Try again'),
-                    ),
-                    TextButton(
-                      onPressed: widget.repository.signOut,
-                      child: const Text('Sign out'),
-                    ),
-                  ],
+                      TextButton(
+                        onPressed: widget.repository.signOut,
+                        child: const Text('Sign out'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -385,6 +434,7 @@ class HomeScreen extends StatelessWidget {
     if (!profile.isStudent || profile.spaceId == null) {
       return Scaffold(
         appBar: AppBar(
+          title: const _CompactBrand(),
           actions: [
             IconButton(
               onPressed: repository.signOut,
@@ -396,8 +446,13 @@ class HomeScreen extends StatelessWidget {
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
-            child: Text(
-              'Your advisor profile is ready. Pairing and coaching tools arrive in Phase 3.',
+            child: _SoftPanel(
+              child: Padding(
+                padding: EdgeInsets.all(30),
+                child: Text(
+                  'Your advisor profile is ready. Pairing and coaching tools arrive in Phase 3.',
+                ),
+              ),
             ),
           ),
         ),
@@ -439,7 +494,7 @@ class _StudentHomeState extends State<StudentHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CourseCraft'),
+        title: const _CompactBrand(),
         actions: [
           IconButton(
             onPressed: widget.repository.signOut,
@@ -452,7 +507,7 @@ class _StudentHomeState extends State<StudentHome> {
         future: _snapshot,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: _SoftLoadingIndicator());
           }
           if (snapshot.hasError) return _RetryState(onRetry: _refresh);
           final data = snapshot.requireData;
@@ -521,10 +576,16 @@ class _RetryState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: FilledButton.icon(
+      child: _PrimaryButton(
         onPressed: onRetry,
-        icon: const Icon(Icons.refresh),
-        label: const Text('Retry loading workspace'),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.refresh),
+            SizedBox(width: 8),
+            Text('Retry loading workspace'),
+          ],
+        ),
       ),
     );
   }
@@ -540,26 +601,35 @@ class _SemesterSetup extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.auto_stories_outlined, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'Start your first semester',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Create a semester, then add subjects, assessment weights, and marks.',
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add),
-              label: const Text('Create semester'),
-            ),
-          ],
+        child: _SoftPanel(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _IconWell(icon: Icons.auto_stories_outlined, size: 28),
+              const SizedBox(height: 16),
+              Text(
+                'Start your first semester',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Create a semester, then add subjects, assessment weights, and marks.',
+              ),
+              const SizedBox(height: 20),
+              _PrimaryButton(
+                onPressed: onCreate,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add),
+                    SizedBox(width: 8),
+                    Text('Create semester'),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -600,22 +670,31 @@ class _AcademicDashboard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(snapshot.semester!.name),
         const SizedBox(height: 24),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Projected SGPA'),
-                const SizedBox(height: 8),
-                Text(
-                  sgpa?.toStringAsFixed(2) ?? 'No marks yet',
-                  style: Theme.of(context).textTheme.displaySmall,
+        _SoftPanel(
+          padding: const EdgeInsets.all(26),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'PROJECTED SGPA',
+                style: TextStyle(
+                  color: _accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
-                const SizedBox(height: 8),
-                const Text('Target: 9.50'),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                sgpa?.toStringAsFixed(2) ?? 'No marks yet',
+                style: Theme.of(context).textTheme.displaySmall,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'From your entered marks',
+                style: TextStyle(color: _muted),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),
@@ -623,9 +702,9 @@ class _AcademicDashboard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Subjects', style: Theme.of(context).textTheme.titleLarge),
-            IconButton(
+            _IconWellButton(
               onPressed: onAddSubject,
-              icon: const Icon(Icons.add),
+              icon: Icons.add,
               tooltip: 'Add subject',
             ),
           ],
@@ -636,48 +715,47 @@ class _AcademicDashboard extends StatelessWidget {
             child: Text('Add your first subject to begin.'),
           ),
         for (final subject in snapshot.subjects)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          subject.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      Text(
-                        subject.percentage
-                                ?.toStringAsFixed(0)
-                                .replaceAllMapped(RegExp(r'$'), (_) => '%') ??
-                            'No marks',
-                      ),
-                    ],
-                  ),
-                  if (subject.code != null) Text(subject.code!),
-                  Text('${subject.credits.toStringAsFixed(1)} credits'),
-                  const SizedBox(height: 12),
-                  for (final assessment in subject.assessments)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
+          _SoftPanel(
+            inset: true,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        '${assessment.title}: ${assessment.obtainedMarks?.toStringAsFixed(0) ?? '-'} / ${assessment.maxMarks.toStringAsFixed(0)} (${assessment.weightPct.toStringAsFixed(0)}%)',
+                        subject.name,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => onAddAssessment(subject),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add assessment'),
+                    Text(
+                      subject.percentage
+                              ?.toStringAsFixed(0)
+                              .replaceAllMapped(RegExp(r'$'), (_) => '%') ??
+                          'No marks',
+                    ),
+                  ],
+                ),
+                if (subject.code != null) Text(subject.code!),
+                Text('${subject.credits.toStringAsFixed(1)} credits'),
+                const SizedBox(height: 12),
+                for (final assessment in subject.assessments)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      '${assessment.title}: ${assessment.obtainedMarks?.toStringAsFixed(0) ?? '-'} / ${assessment.maxMarks.toStringAsFixed(0)} (${assessment.weightPct.toStringAsFixed(0)}%)',
                     ),
                   ),
-                ],
-              ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => onAddAssessment(subject),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add assessment'),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -892,4 +970,165 @@ Future<_AssessmentValues?> _assessmentPrompt(
   max.dispose();
   obtained.dispose();
   return values;
+}
+
+class _SoftPanel extends StatelessWidget {
+  const _SoftPanel({required this.child, this.padding, this.inset = false});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final bool inset;
+
+  @override
+  Widget build(BuildContext context) {
+    final shadow = _shadowDark.withValues(alpha: inset ? .48 : .6);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: [
+          BoxShadow(
+            color: shadow,
+            offset: inset ? const Offset(6, 6) : const Offset(9, 9),
+            blurRadius: inset ? 10 : 16,
+            spreadRadius: inset ? -4 : 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: .55),
+            offset: inset ? const Offset(-6, -6) : const Offset(-9, -9),
+            blurRadius: inset ? 10 : 16,
+            spreadRadius: inset ? -4 : 0,
+          ),
+        ],
+      ),
+      child: padding == null ? child : Padding(padding: padding!, child: child),
+    );
+  }
+}
+
+class _IconWell extends StatelessWidget {
+  const _IconWell({required this.icon, required this.size});
+
+  final IconData icon;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 52,
+    height: 52,
+    decoration: BoxDecoration(
+      color: _surface,
+      borderRadius: BorderRadius.circular(17),
+      boxShadow: [
+        BoxShadow(
+          color: _shadowDark.withValues(alpha: .55),
+          offset: const Offset(5, 5),
+          blurRadius: 10,
+        ),
+        BoxShadow(
+          color: Colors.white.withValues(alpha: .58),
+          offset: const Offset(-5, -5),
+          blurRadius: 10,
+        ),
+      ],
+    ),
+    child: Icon(icon, size: size, color: _accent),
+  );
+}
+
+class _IconWellButton extends StatelessWidget {
+  const _IconWellButton({
+    required this.onPressed,
+    required this.icon,
+    required this.tooltip,
+  });
+
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(17),
+          child: _IconWell(icon: icon, size: 23),
+        ),
+      ),
+    ),
+  );
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({required this.onPressed, required this.child});
+
+  final VoidCallback? onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    height: 52,
+    child: FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: _accent,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: _accent.withValues(alpha: .45),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: _accent.withValues(alpha: .36),
+      ),
+      child: child,
+    ),
+  );
+}
+
+class _BrandTitle extends StatelessWidget {
+  const _BrandTitle();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const _IconWell(icon: Icons.school_outlined, size: 25),
+      const SizedBox(width: 12),
+      Text(
+        'CourseCraft',
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    ],
+  );
+}
+
+class _CompactBrand extends StatelessWidget {
+  const _CompactBrand();
+
+  @override
+  Widget build(BuildContext context) => const Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(Icons.school_outlined, color: _accent),
+      SizedBox(width: 8),
+      Text('CourseCraft'),
+    ],
+  );
+}
+
+class _SoftLoadingIndicator extends StatelessWidget {
+  const _SoftLoadingIndicator();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+    width: 48,
+    height: 48,
+    child: CircularProgressIndicator(color: _accent, strokeWidth: 4),
+  );
 }
