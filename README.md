@@ -20,4 +20,15 @@ repository. The cross-platform roadmap is in the workspace root `Plan.md`.
 bash scripts/bootstrap_phase0.sh
 ```
 
-For local Supabase configuration, supply `SUPABASE_URL` and `SUPABASE_ANON_KEY` with Dart defines.
+## Supabase configuration
+
+Apply `supabase/migrations/0001_init.sql` and subsequent migrations to one Supabase project.
+Then launch with the project URL and anonymous key supplied as Dart defines:
+
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
+```
+
+The app shows a configuration state instead of attempting a connection when either value is absent.
