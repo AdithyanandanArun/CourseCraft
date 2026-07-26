@@ -17,6 +17,10 @@ const _ink = Color(0xff3d4852);
 const _muted = Color(0xff6b7280);
 const _accent = Color(0xff6c63ff);
 const _shadowDark = Color(0xffa3b1c6);
+const _darkSurface = Color(0xff202833);
+const _darkInk = Color(0xffedf1f5);
+const _darkMuted = Color(0xffb8c1cb);
+const _darkShadow = Color(0xff070a10);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,10 +31,17 @@ Future<void> main() async {
   runApp(CourseCraftApp(config: config));
 }
 
-class CourseCraftApp extends StatelessWidget {
+class CourseCraftApp extends StatefulWidget {
   const CourseCraftApp({super.key, required this.config});
 
   final AppConfig config;
+
+  @override
+  State<CourseCraftApp> createState() => _CourseCraftAppState();
+}
+
+class _CourseCraftAppState extends State<CourseCraftApp> {
+  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   Widget build(BuildContext context) {
@@ -38,60 +49,92 @@ class CourseCraftApp extends StatelessWidget {
       child: MaterialApp(
         title: 'CourseCraft',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: _accent,
-            brightness: Brightness.light,
-            surface: _surface,
+        theme: _buildTheme(Brightness.light),
+        darkTheme: _buildTheme(Brightness.dark),
+        themeMode: _themeMode,
+        builder: (context, child) => ThemeScope(
+          isDark: _themeMode == ThemeMode.dark,
+          onToggle: () => setState(
+            () => _themeMode = _themeMode == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark,
           ),
-          useMaterial3: true,
-          scaffoldBackgroundColor: _surface,
-          textTheme: ThemeData.light().textTheme.apply(
-            bodyColor: _ink,
-            displayColor: _ink,
-            fontFamily: 'sans-serif',
-          ),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: _surface,
-            foregroundColor: _ink,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: _surface,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 16,
-            ),
-            labelStyle: const TextStyle(color: _muted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: _accent, width: 2),
-            ),
-          ),
-          dialogTheme: DialogThemeData(
-            backgroundColor: _surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(32),
-            ),
-            elevation: 0,
-          ),
+          child: child ?? const SizedBox.shrink(),
         ),
-        home: config.isSupabaseConfigured
+        home: widget.config.isSupabaseConfigured
             ? AuthGate(repository: AuthRepository(Supabase.instance.client))
             : const ConfigurationScreen(),
       ),
     );
   }
+}
+
+ThemeData _buildTheme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final surface = dark ? _darkSurface : _surface;
+  final ink = dark ? _darkInk : _ink;
+  final muted = dark ? _darkMuted : _muted;
+  return ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: dark ? const Color(0xffa9a4ff) : _accent,
+      brightness: brightness,
+      surface: surface,
+    ),
+    useMaterial3: true,
+    scaffoldBackgroundColor: surface,
+    textTheme: ThemeData(brightness: brightness).textTheme.apply(
+      bodyColor: ink,
+      displayColor: ink,
+      fontFamily: 'sans-serif',
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: surface,
+      foregroundColor: ink,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      labelStyle: TextStyle(color: muted),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _accent, width: 2),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+      elevation: 0,
+    ),
+  );
+}
+
+class ThemeScope extends InheritedWidget {
+  const ThemeScope({
+    super.key,
+    required this.isDark,
+    required this.onToggle,
+    required super.child,
+  });
+
+  final bool isDark;
+  final VoidCallback onToggle;
+
+  static ThemeScope of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ThemeScope>()!;
+
+  @override
+  bool updateShouldNotify(ThemeScope oldWidget) => isDark != oldWidget.isDark;
 }
 
 class ConfigurationScreen extends StatelessWidget {
@@ -100,32 +143,37 @@ class ConfigurationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: _SoftPanel(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _IconWell(icon: Icons.cloud_off_outlined, size: 26),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Connect CourseCraft',
-                    style: Theme.of(context).textTheme.headlineMedium,
+      body: Stack(
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: _SoftPanel(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _IconWell(icon: Icons.cloud_off_outlined, size: 26),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Connect CourseCraft',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Launch with SUPABASE_URL and SUPABASE_ANON_KEY Dart defines after applying the Supabase migrations.',
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Launch with SUPABASE_URL and SUPABASE_ANON_KEY Dart defines after applying the Supabase migrations.',
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+          const Positioned(top: 16, right: 16, child: _ThemeToggle()),
+        ],
       ),
     );
   }
@@ -237,117 +285,127 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: _SoftPanel(
-                padding: const EdgeInsets.all(32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _BrandTitle(),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isSignUp
-                            ? 'Build your own academic system.'
-                            : 'Welcome back.',
-                      ),
-                      const SizedBox(height: 32),
-                      if (_isSignUp) ...[
-                        TextFormField(
-                          controller: _nameController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(labelText: 'Name'),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                              ? 'Enter your name.'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'student',
-                              label: Text('Student'),
-                              icon: Icon(Icons.school_outlined),
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: _SoftPanel(
+                    padding: const EdgeInsets.all(32),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _BrandTitle(),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isSignUp
+                                ? 'Build your own academic system.'
+                                : 'Welcome back.',
+                          ),
+                          const SizedBox(height: 32),
+                          if (_isSignUp) ...[
+                            TextFormField(
+                              controller: _nameController,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'Name',
+                              ),
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'Enter your name.'
+                                  : null,
                             ),
-                            ButtonSegment(
-                              value: 'advisor',
-                              label: Text('Advisor'),
-                              icon: Icon(Icons.support_agent_outlined),
+                            const SizedBox(height: 16),
+                            SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: 'student',
+                                  label: Text('Student'),
+                                  icon: Icon(Icons.school_outlined),
+                                ),
+                                ButtonSegment(
+                                  value: 'advisor',
+                                  label: Text('Advisor'),
+                                  icon: Icon(Icons.support_agent_outlined),
+                                ),
+                              ],
+                              selected: {_role},
+                              onSelectionChanged: (value) =>
+                                  setState(() => _role = value.first),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                            validator: (value) =>
+                                value == null || !value.contains('@')
+                                ? 'Enter a valid email.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            autofillHints: const [AutofillHints.password],
+                            decoration: const InputDecoration(
+                              labelText: 'Password',
+                            ),
+                            validator: (value) =>
+                                value == null || value.length < 8
+                                ? 'Use at least 8 characters.'
+                                : null,
+                          ),
+                          if (_message != null) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              _message!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
                             ),
                           ],
-                          selected: {_role},
-                          onSelectionChanged: (value) =>
-                              setState(() => _role = value.first),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        autofillHints: const [AutofillHints.email],
-                        decoration: const InputDecoration(labelText: 'Email'),
-                        validator: (value) =>
-                            value == null || !value.contains('@')
-                            ? 'Enter a valid email.'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        autofillHints: const [AutofillHints.password],
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                        ),
-                        validator: (value) => value == null || value.length < 8
-                            ? 'Use at least 8 characters.'
-                            : null,
-                      ),
-                      if (_message != null) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          _message!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
+                          const SizedBox(height: 24),
+                          _PrimaryButton(
+                            onPressed: _isLoading ? null : _submit,
+                            child: Text(
+                              _isLoading
+                                  ? 'Please wait...'
+                                  : _isSignUp
+                                  ? 'Create account'
+                                  : 'Sign in',
+                            ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      _PrimaryButton(
-                        onPressed: _isLoading ? null : _submit,
-                        child: Text(
-                          _isLoading
-                              ? 'Please wait...'
-                              : _isSignUp
-                              ? 'Create account'
-                              : 'Sign in',
-                        ),
+                          TextButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => setState(() {
+                                    _isSignUp = !_isSignUp;
+                                    _message = null;
+                                  }),
+                            child: Text(
+                              _isSignUp
+                                  ? 'Already have an account? Sign in'
+                                  : 'New to CourseCraft? Create an account',
+                            ),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () => setState(() {
-                                _isSignUp = !_isSignUp;
-                                _message = null;
-                              }),
-                        child: Text(
-                          _isSignUp
-                              ? 'Already have an account? Sign in'
-                              : 'New to CourseCraft? Create an account',
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+            const Positioned(top: 8, right: 16, child: _ThemeToggle()),
+          ],
         ),
       ),
     );
@@ -436,6 +494,7 @@ class HomeScreen extends StatelessWidget {
         appBar: AppBar(
           title: const _CompactBrand(),
           actions: [
+            const _ThemeToggle(),
             IconButton(
               onPressed: repository.signOut,
               icon: const Icon(Icons.logout),
@@ -496,6 +555,7 @@ class _StudentHomeState extends State<StudentHome> {
       appBar: AppBar(
         title: const _CompactBrand(),
         actions: [
+          const _ThemeToggle(),
           IconButton(
             onPressed: widget.repository.signOut,
             icon: const Icon(Icons.logout),
@@ -675,10 +735,10 @@ class _AcademicDashboard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'PROJECTED SGPA',
                 style: TextStyle(
-                  color: _accent,
+                  color: Theme.of(context).colorScheme.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
@@ -690,9 +750,11 @@ class _AcademicDashboard extends StatelessWidget {
                 style: Theme.of(context).textTheme.displaySmall,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'From your entered marks',
-                style: TextStyle(color: _muted),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -981,10 +1043,16 @@ class _SoftPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shadow = _shadowDark.withValues(alpha: inset ? .48 : .6);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).scaffoldBackgroundColor;
+    final shadow = (dark ? _darkShadow : _shadowDark).withValues(
+      alpha: inset ? .58 : .7,
+    );
+    final highlight = (dark ? const Color(0xff4b5b6c) : Colors.white)
+        .withValues(alpha: dark ? .32 : .55);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _surface,
+        color: surface,
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
@@ -994,7 +1062,7 @@ class _SoftPanel extends StatelessWidget {
             spreadRadius: inset ? -4 : 0,
           ),
           BoxShadow(
-            color: Colors.white.withValues(alpha: .55),
+            color: highlight,
             offset: inset ? const Offset(-6, -6) : const Offset(-9, -9),
             blurRadius: inset ? 10 : 16,
             spreadRadius: inset ? -4 : 0,
@@ -1013,27 +1081,36 @@ class _IconWell extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 52,
-    height: 52,
-    decoration: BoxDecoration(
-      color: _surface,
-      borderRadius: BorderRadius.circular(17),
-      boxShadow: [
-        BoxShadow(
-          color: _shadowDark.withValues(alpha: .55),
-          offset: const Offset(5, 5),
-          blurRadius: 10,
-        ),
-        BoxShadow(
-          color: Colors.white.withValues(alpha: .58),
-          offset: const Offset(-5, -5),
-          blurRadius: 10,
-        ),
-      ],
-    ),
-    child: Icon(icon, size: size, color: _accent),
-  );
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: [
+          BoxShadow(
+            color: (dark ? _darkShadow : _shadowDark).withValues(alpha: .7),
+            offset: const Offset(5, 5),
+            blurRadius: 10,
+          ),
+          BoxShadow(
+            color: (dark ? const Color(0xff4b5b6c) : Colors.white).withValues(
+              alpha: dark ? .32 : .58,
+            ),
+            offset: const Offset(-5, -5),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Icon(
+        icon,
+        size: size,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
 }
 
 class _IconWellButton extends StatelessWidget {
@@ -1078,12 +1155,16 @@ class _PrimaryButton extends StatelessWidget {
     child: FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: _accent,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: _accent.withValues(alpha: .45),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        disabledBackgroundColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: .45),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 6,
-        shadowColor: _accent.withValues(alpha: .36),
+        shadowColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: .36),
       ),
       child: child,
     ),
@@ -1112,12 +1193,12 @@ class _CompactBrand extends StatelessWidget {
   const _CompactBrand();
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(Icons.school_outlined, color: _accent),
-      SizedBox(width: 8),
-      Text('CourseCraft'),
+      Icon(Icons.school_outlined, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 8),
+      const Text('CourseCraft'),
     ],
   );
 }
@@ -1126,9 +1207,29 @@ class _SoftLoadingIndicator extends StatelessWidget {
   const _SoftLoadingIndicator();
 
   @override
-  Widget build(BuildContext context) => const SizedBox(
+  Widget build(BuildContext context) => SizedBox(
     width: 48,
     height: 48,
-    child: CircularProgressIndicator(color: _accent, strokeWidth: 4),
+    child: CircularProgressIndicator(
+      color: Theme.of(context).colorScheme.primary,
+      strokeWidth: 4,
+    ),
   );
+}
+
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = ThemeScope.of(context);
+    final label = scope.isDark ? 'Use light theme' : 'Use dark theme';
+    return IconButton(
+      onPressed: scope.onToggle,
+      tooltip: label,
+      icon: Icon(
+        scope.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+      ),
+    );
+  }
 }
