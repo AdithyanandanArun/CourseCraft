@@ -820,6 +820,44 @@ class _PlanningScreenState extends State<_PlanningScreen> {
     }
   }
 
+  Future<void> _deleteTimetable() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear timetable?'),
+        content: const Text(
+          'This removes every class from your timetable. Subjects and attendance records will be kept. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear timetable'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.academics.deleteTimetable(widget.spaceId);
+      _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Timetable cleared.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not clear timetable: $error')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now().weekday;
@@ -845,6 +883,12 @@ class _PlanningScreenState extends State<_PlanningScreen> {
                 onPressed: _import,
                 icon: Icons.upload_file_outlined,
                 tooltip: 'Import timetable',
+              ),
+              const SizedBox(width: 8),
+              _IconWellButton(
+                onPressed: _deleteTimetable,
+                icon: Icons.delete_outline,
+                tooltip: 'Clear timetable',
               ),
             ],
           ),

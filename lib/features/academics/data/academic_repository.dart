@@ -139,6 +139,10 @@ class AcademicRepository {
         .toList();
   }
 
+  Future<void> deleteTimetable(String spaceId) async {
+    await _client.from('timetable_slots').delete().eq('space_id', spaceId);
+  }
+
   Future<void> recordAttendance({
     required String spaceId,
     required String subjectId,
