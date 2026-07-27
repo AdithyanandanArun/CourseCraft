@@ -152,4 +152,37 @@ class AcademicRepository {
       'status': status,
     }, onConflict: 'subject_id,date');
   }
+
+  Future<void> addPlanningItem({
+    required String table,
+    required String spaceId,
+    required String value,
+  }) async {
+    final row = <String, dynamic>{'space_id': spaceId};
+    switch (table) {
+      case 'tasks':
+        row.addAll({
+          'title': value,
+          'created_by': _client.auth.currentUser!.id,
+          'created_by_role': 'student',
+        });
+        break;
+      case 'habits':
+        row['name'] = value;
+        break;
+      case 'notes':
+        row.addAll({'body': value, 'created_by': _client.auth.currentUser!.id});
+        break;
+      case 'events':
+        row.addAll({
+          'title': value,
+          'type': 'college',
+          'start_at': DateTime.now().toIso8601String(),
+        });
+        break;
+      default:
+        throw ArgumentError.value(table, 'table');
+    }
+    await _client.from(table).insert(row);
+  }
 }

@@ -704,6 +704,37 @@ class _PlanningScreenState extends State<_PlanningScreen> {
   void _reload() =>
       setState(() => _slots = widget.academics.loadTimetable(widget.spaceId));
 
+  Future<void> _addPlanningItem(
+    String table,
+    String title,
+    String label,
+  ) async {
+    final value = await _textPrompt(
+      context: context,
+      title: title,
+      label: label,
+    );
+    if (value == null || !mounted) return;
+    try {
+      await widget.academics.addPlanningItem(
+        table: table,
+        spaceId: widget.spaceId,
+        value: value,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Saved.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+      }
+    }
+  }
+
   Future<void> _import() async {
     final controller = TextEditingController();
     final result = await showDialog<Map<String, dynamic>>(
@@ -913,18 +944,55 @@ class _PlanningScreenState extends State<_PlanningScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const _SoftPanel(
-            padding: EdgeInsets.all(20),
+          _SoftPanel(
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Tasks, habits, notes, and calendar',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  'Plan your week',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'These shared planning tools are available on the web workspace now. Native Android forms follow in the next update.',
+                const SizedBox(height: 8),
+                const Text(
+                  'Keep these personal planning tools in sync with your web workspace.',
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _addPlanningItem('tasks', 'Add task', 'Task'),
+                      icon: const Icon(Icons.checklist_outlined),
+                      label: const Text('Task'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _addPlanningItem(
+                        'habits',
+                        'Add habit',
+                        'Daily habit',
+                      ),
+                      icon: const Icon(Icons.repeat),
+                      label: const Text('Habit'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _addPlanningItem('notes', 'Add note', 'Note'),
+                      icon: const Icon(Icons.note_add_outlined),
+                      label: const Text('Note'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _addPlanningItem(
+                        'events',
+                        'Add calendar event',
+                        'Event title',
+                      ),
+                      icon: const Icon(Icons.event_outlined),
+                      label: const Text('Event'),
+                    ),
+                  ],
                 ),
               ],
             ),
