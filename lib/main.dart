@@ -796,6 +796,26 @@ class _PlanningScreenState extends State<_PlanningScreen> {
     );
     controller.dispose();
     if (result == null || !mounted) return;
+    final replace = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Replace current timetable?'),
+        content: const Text(
+          'This replaces all current subjects for this semester. Linked assessments and attendance records will also be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    if (replace != true || !mounted) return;
     try {
       final summary = await widget.academics.importTimetable(
         spaceId: widget.spaceId,
@@ -826,7 +846,7 @@ class _PlanningScreenState extends State<_PlanningScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Clear timetable?'),
         content: const Text(
-          'This removes every class from your timetable. Subjects and attendance records will be kept. This cannot be undone.',
+          'This removes every class and subject in this semester. Linked assessments and attendance records will also be deleted. This cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -842,7 +862,10 @@ class _PlanningScreenState extends State<_PlanningScreen> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await widget.academics.deleteTimetable(widget.spaceId);
+      await widget.academics.deleteTimetable(
+        spaceId: widget.spaceId,
+        semesterId: widget.semester.id,
+      );
       _reload();
       if (mounted) {
         ScaffoldMessenger.of(
