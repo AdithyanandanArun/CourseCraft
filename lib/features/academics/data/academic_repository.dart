@@ -106,4 +106,50 @@ class AcademicRepository {
       'obtained_marks': obtainedMarks,
     });
   }
+
+  Future<Map<String, dynamic>> importTimetable({
+    required String spaceId,
+    required String semesterId,
+    required Map<String, dynamic> timetable,
+  }) async {
+    final response = await _client.rpc(
+      'import_timetable_json',
+      params: {
+        'p_space_id': spaceId,
+        'p_semester_id': semesterId,
+        'p_timetable': timetable,
+      },
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  Future<List<TimetableSlot>> loadTimetable(String spaceId) async {
+    final rows = await _client
+        .from('timetable_slots')
+        .select(
+          'id, day_of_week, start_time, end_time, room, subject:subjects(name)',
+        )
+        .eq('space_id', spaceId)
+        .order('day_of_week')
+        .order('start_time');
+    return (rows as List)
+        .map(
+          (row) => TimetableSlot.fromMap(Map<String, dynamic>.from(row as Map)),
+        )
+        .toList();
+  }
+
+  Future<void> recordAttendance({
+    required String spaceId,
+    required String subjectId,
+    required String status,
+  }) async {
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    await _client.from('attendance').upsert({
+      'space_id': spaceId,
+      'subject_id': subjectId,
+      'date': date,
+      'status': status,
+    }, onConflict: 'subject_id,date');
+  }
 }

@@ -90,3 +90,35 @@ class AcademicSnapshot {
   final Semester? semester;
   final List<AcademicSubject> subjects;
 }
+
+class TimetableSlot {
+  const TimetableSlot({
+    required this.id,
+    required this.day,
+    required this.startTime,
+    required this.endTime,
+    required this.subjectName,
+    required this.room,
+  });
+
+  factory TimetableSlot.fromMap(Map<String, dynamic> map) {
+    final subject = map['subject'];
+    return TimetableSlot(
+      id: map['id'] as String,
+      day: map['day_of_week'] as int,
+      startTime: map['start_time'] as String,
+      endTime: map['end_time'] as String,
+      subjectName: subject is Map
+          ? subject['name'] as String? ?? 'Untitled class'
+          : 'Untitled class',
+      room: map['room'] as String?,
+    );
+  }
+
+  final String id;
+  final int day;
+  final String startTime;
+  final String endTime;
+  final String subjectName;
+  final String? room;
+}

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -538,6 +539,7 @@ class StudentHome extends StatefulWidget {
 class _StudentHomeState extends State<StudentHome> {
   late final AcademicRepository _academics;
   late Future<AcademicSnapshot> _snapshot;
+  bool _showPlanning = false;
 
   @override
   void initState() {
@@ -574,11 +576,22 @@ class _StudentHomeState extends State<StudentHome> {
           if (data.semester == null) {
             return _SemesterSetup(onCreate: _createSemester);
           }
+          if (_showPlanning) {
+            return _PlanningScreen(
+              academics: _academics,
+              spaceId: widget.profile.spaceId!,
+              semester: data.semester!,
+              subjects: data.subjects,
+              onBack: () => setState(() => _showPlanning = false),
+              onImported: _refresh,
+            );
+          }
           return _AcademicDashboard(
             profile: widget.profile,
             snapshot: data,
             onAddSubject: () => _addSubject(data.semester!),
             onAddAssessment: (subject) => _addAssessment(subject),
+            onOpenPlanning: () => setState(() => _showPlanning = true),
           );
         },
       ),
@@ -651,6 +664,277 @@ class _RetryState extends StatelessWidget {
   }
 }
 
+const _timetablePrompt =
+    '''Analyze the attached timetable image and convert it into JSON format.
+1. Group the data hierarchically by Subject.
+2. Ignore all teacher or professor names.
+3. Clean up subject names by removing group, section, or batch designations. Combine schedules for the same base subject.
+4. Use standard straight double quotes, not smart quotes.
+5. Return ONLY valid JSON matching this structure:
+{"subjects":[{"name":"Subject Name","schedules":[{"day":"Monday","classTimes":[{"startTime":"09:00 AM","endTime":"10:30 AM","roomNumber":"Room 101"}]}]}]}''';
+
+class _PlanningScreen extends StatefulWidget {
+  const _PlanningScreen({
+    required this.academics,
+    required this.spaceId,
+    required this.semester,
+    required this.subjects,
+    required this.onBack,
+    required this.onImported,
+  });
+  final AcademicRepository academics;
+  final String spaceId;
+  final Semester semester;
+  final List<AcademicSubject> subjects;
+  final VoidCallback onBack;
+  final VoidCallback onImported;
+
+  @override
+  State<_PlanningScreen> createState() => _PlanningScreenState();
+}
+
+class _PlanningScreenState extends State<_PlanningScreen> {
+  late Future<List<TimetableSlot>> _slots;
+  @override
+  void initState() {
+    super.initState();
+    _slots = widget.academics.loadTimetable(widget.spaceId);
+  }
+
+  void _reload() =>
+      setState(() => _slots = widget.academics.loadTimetable(widget.spaceId));
+
+  Future<void> _import() async {
+    final controller = TextEditingController();
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import timetable'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Upload your timetable image to an AI model, give it this prompt, then paste only its JSON response.',
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  _timetablePrompt,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  minLines: 6,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    labelText: 'Timetable JSON',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              try {
+                Navigator.pop(
+                  context,
+                  Map<String, dynamic>.from(jsonDecode(controller.text) as Map),
+                );
+              } catch (_) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Paste valid JSON without markdown fences.'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || !mounted) return;
+    try {
+      final summary = await widget.academics.importTimetable(
+        spaceId: widget.spaceId,
+        semesterId: widget.semester.id,
+        timetable: result,
+      );
+      _reload();
+      widget.onImported();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${summary['slotsCreated']} classes imported.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import failed: $error')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now().weekday;
+    return FutureBuilder<List<TimetableSlot>>(
+      future: _slots,
+      builder: (context, snapshot) => ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: widget.onBack,
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to academics',
+              ),
+              Expanded(
+                child: Text(
+                  'Academic planning',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              _IconWellButton(
+                onPressed: _import,
+                icon: Icons.upload_file_outlined,
+                tooltip: 'Import timetable',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Import a timetable from AI-generated JSON. Mark attendance manually after each class.',
+          ),
+          const SizedBox(height: 22),
+          _SoftPanel(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Today’s timetable',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                if (snapshot.connectionState != ConnectionState.done)
+                  const _SoftLoadingIndicator()
+                else
+                  ...((snapshot.data ?? [])
+                      .where((slot) => slot.day == today)
+                      .map(
+                        (slot) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(slot.subjectName),
+                          subtitle: Text(
+                            '${slot.startTime.substring(0, 5)} - ${slot.endTime.substring(0, 5)}${slot.room == null ? '' : ' · ${slot.room}'}',
+                          ),
+                        ),
+                      )),
+                if (snapshot.connectionState == ConnectionState.done &&
+                    (snapshot.data ?? [])
+                        .where((slot) => slot.day == today)
+                        .isEmpty)
+                  const Text('No classes scheduled today.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SoftPanel(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Attendance',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                for (final subject in widget.subjects)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(subject.name),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await widget.academics.recordAttendance(
+                              spaceId: widget.spaceId,
+                              subjectId: subject.id,
+                              status: 'present',
+                            );
+                            if (mounted) {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Marked present.'),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text('Present'),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await widget.academics.recordAttendance(
+                              spaceId: widget.spaceId,
+                              subjectId: subject.id,
+                              status: 'absent',
+                            );
+                            if (mounted) {
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('Marked absent.')),
+                              );
+                            }
+                          },
+                          child: const Text('Absent'),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _SoftPanel(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tasks, habits, notes, and calendar',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'These shared planning tools are available on the web workspace now. Native Android forms follow in the next update.',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SemesterSetup extends StatelessWidget {
   const _SemesterSetup({required this.onCreate});
 
@@ -702,12 +986,14 @@ class _AcademicDashboard extends StatelessWidget {
     required this.snapshot,
     required this.onAddSubject,
     required this.onAddAssessment,
+    required this.onOpenPlanning,
   });
 
   final AppProfile profile;
   final AcademicSnapshot snapshot;
   final VoidCallback onAddSubject;
   final Future<void> Function(AcademicSubject) onAddAssessment;
+  final VoidCallback onOpenPlanning;
 
   @override
   Widget build(BuildContext context) {
@@ -755,6 +1041,35 @@ class _AcademicDashboard extends StatelessWidget {
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _SoftPanel(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              const _IconWell(icon: Icons.calendar_month_outlined, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Academic planning',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      'Timetable, attendance, tasks, habits, notes, and calendar.',
+                    ),
+                  ],
+                ),
+              ),
+              _IconWellButton(
+                onPressed: onOpenPlanning,
+                icon: Icons.arrow_forward,
+                tooltip: 'Open planning',
               ),
             ],
           ),
