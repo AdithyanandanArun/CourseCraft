@@ -41,6 +41,7 @@ class AcademicSubject {
     required this.name,
     required this.code,
     required this.credits,
+    required this.attendanceTarget,
     required this.assessments,
   });
 
@@ -53,6 +54,7 @@ class AcademicSubject {
       name: map['name'] as String,
       code: map['code'] as String?,
       credits: (map['credits'] as num).toDouble(),
+      attendanceTarget: (map['attendance_target'] as num?)?.toDouble() ?? 75,
       assessments: assessments,
     );
   }
@@ -61,6 +63,7 @@ class AcademicSubject {
   final String name;
   final String? code;
   final double credits;
+  final double attendanceTarget;
   final List<Assessment> assessments;
 
   double? get percentage {
@@ -84,11 +87,26 @@ class AcademicSubject {
   }
 }
 
+class AttendanceSummary {
+  const AttendanceSummary({required this.attended, required this.missed});
+
+  final int attended;
+  final int missed;
+
+  int get total => attended + missed;
+  double get percentage => total == 0 ? 0 : attended / total * 100;
+}
+
 class AcademicSnapshot {
-  const AcademicSnapshot({required this.semester, required this.subjects});
+  const AcademicSnapshot({
+    required this.semester,
+    required this.subjects,
+    required this.attendanceBySubject,
+  });
 
   final Semester? semester;
   final List<AcademicSubject> subjects;
+  final Map<String, AttendanceSummary> attendanceBySubject;
 }
 
 class TimetableSlot {

@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/app_profile.dart';
 
+const _authRedirectUrl = 'https://adithyanandanarun.github.io/CourseCraft-Web/';
+
 class AuthRepository {
   AuthRepository(this._client);
 
@@ -26,6 +28,7 @@ class AuthRepository {
     return _client.auth.signUp(
       email: email.trim(),
       password: password,
+      emailRedirectTo: _authRedirectUrl,
       data: {'display_name': displayName.trim(), 'role': role},
     );
   }

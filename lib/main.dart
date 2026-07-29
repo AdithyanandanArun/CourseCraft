@@ -582,6 +582,7 @@ class _StudentHomeState extends State<StudentHome> {
               spaceId: widget.profile.spaceId!,
               semester: data.semester!,
               subjects: data.subjects,
+              attendanceBySubject: data.attendanceBySubject,
               onBack: () => setState(() => _showPlanning = false),
               onImported: _refresh,
             );
@@ -679,6 +680,7 @@ class _PlanningScreen extends StatefulWidget {
     required this.spaceId,
     required this.semester,
     required this.subjects,
+    required this.attendanceBySubject,
     required this.onBack,
     required this.onImported,
   });
@@ -686,6 +688,7 @@ class _PlanningScreen extends StatefulWidget {
   final String spaceId;
   final Semester semester;
   final List<AcademicSubject> subjects;
+  final Map<String, AttendanceSummary> attendanceBySubject;
   final VoidCallback onBack;
   final VoidCallback onImported;
 
@@ -695,6 +698,7 @@ class _PlanningScreen extends StatefulWidget {
 
 class _PlanningScreenState extends State<_PlanningScreen> {
   late Future<List<TimetableSlot>> _slots;
+  final Set<String> _pendingAttendanceSubjects = {};
   @override
   void initState() {
     super.initState();
@@ -703,6 +707,33 @@ class _PlanningScreenState extends State<_PlanningScreen> {
 
   void _reload() =>
       setState(() => _slots = widget.academics.loadTimetable(widget.spaceId));
+
+  Future<void> _adjustAttendance(
+    AcademicSubject subject,
+    String status,
+    int delta,
+  ) async {
+    setState(() => _pendingAttendanceSubjects.add(subject.id));
+    try {
+      await widget.academics.adjustAttendance(
+        spaceId: widget.spaceId,
+        subjectId: subject.id,
+        status: status,
+        delta: delta,
+      );
+      widget.onImported();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update attendance: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _pendingAttendanceSubjects.remove(subject.id));
+      }
+    }
+  }
 
   Future<void> _addPlanningItem(
     String table,
@@ -962,49 +993,17 @@ class _PlanningScreenState extends State<_PlanningScreen> {
                   'Attendance',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 for (final subject in widget.subjects)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(subject.name),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        TextButton(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            await widget.academics.recordAttendance(
-                              spaceId: widget.spaceId,
-                              subjectId: subject.id,
-                              status: 'present',
-                            );
-                            if (mounted) {
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Marked present.'),
-                                ),
-                              );
-                            }
-                          },
-                          child: const Text('Present'),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            await widget.academics.recordAttendance(
-                              spaceId: widget.spaceId,
-                              subjectId: subject.id,
-                              status: 'absent',
-                            );
-                            if (mounted) {
-                              messenger.showSnackBar(
-                                const SnackBar(content: Text('Marked absent.')),
-                              );
-                            }
-                          },
-                          child: const Text('Absent'),
-                        ),
-                      ],
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _AttendanceSubjectCard(
+                      subject: subject,
+                      summary: widget.attendanceBySubject[subject.id] ??
+                          const AttendanceSummary(attended: 0, missed: 0),
+                      pending: _pendingAttendanceSubjects.contains(subject.id),
+                      onAdjust: (status, delta) =>
+                          _adjustAttendance(subject, status, delta),
                     ),
                   ),
               ],
@@ -1111,6 +1110,310 @@ class _SemesterSetup extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AttendanceSubjectCard extends StatelessWidget {
+  const _AttendanceSubjectCard({
+    required this.subject,
+    required this.summary,
+    required this.pending,
+    required this.onAdjust,
+  });
+
+  final AcademicSubject subject;
+  final AttendanceSummary summary;
+  final bool pending;
+  final Future<void> Function(String status, int delta) onAdjust;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = subject.attendanceTarget;
+    final percentage = summary.percentage;
+    final tone = summary.total == 0
+        ? _muted
+        : percentage >= target
+        ? const Color(0xff238b85)
+        : percentage >= target - 10
+        ? const Color(0xffb88700)
+        : const Color(0xffb23b4b);
+    final status = summary.total == 0
+        ? 'No classes logged'
+        : percentage >= target
+        ? 'On track'
+        : percentage >= target - 10
+        ? 'Near target'
+        : 'Below target';
+    final background = Theme.of(context).colorScheme.surface;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final shadow = (dark ? _darkShadow : _shadowDark).withValues(alpha: .62);
+    final highlight = (dark ? const Color(0xff4b5b6c) : Colors.white)
+        .withValues(alpha: dark ? .3 : .5);
+
+    return Semantics(
+      label:
+          '${subject.name}: ${summary.attended} attended, ${summary.missed} missed, ${summary.total} total, ${summary.total == 0 ? 'no attendance recorded' : '${percentage.round()} percent'}',
+      child: _SoftPanel(
+        inset: true,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subject.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text('$status · target ${target.toStringAsFixed(0)}%'),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: shadow,
+                        offset: const Offset(5, 5),
+                        blurRadius: 10,
+                      ),
+                      BoxShadow(
+                        color: highlight,
+                        offset: const Offset(-5, -5),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(color: tone, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      _AttendanceCount(label: 'Attended', value: summary.attended),
+                      _AttendanceCount(label: 'Missed', value: summary.missed),
+                      _AttendanceCount(label: 'Total', value: summary.total),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 106,
+                  height: 106,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 106,
+                        height: 106,
+                        child: CircularProgressIndicator(
+                          value: summary.total == 0 ? 0 : percentage / 100,
+                          strokeWidth: 11,
+                          color: tone,
+                          backgroundColor: _muted.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      Container(
+                        width: 76,
+                        height: 76,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: background,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: shadow,
+                              offset: const Offset(5, 5),
+                              blurRadius: 10,
+                              spreadRadius: -3,
+                            ),
+                            BoxShadow(
+                              color: highlight,
+                              offset: const Offset(-5, -5),
+                              blurRadius: 10,
+                              spreadRadius: -3,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              summary.total == 0 ? '---' : '${percentage.round()}%',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            Text(
+                              'attendance',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final attended = _AttendanceAdjuster(
+                  label: 'Attended',
+                  count: summary.attended,
+                  color: const Color(0xff238b85),
+                  onDecrease: summary.attended == 0
+                      ? null
+                      : pending ? null : () => onAdjust('present', -1),
+                  onIncrease: pending ? null : () => onAdjust('present', 1),
+                );
+                final missed = _AttendanceAdjuster(
+                  label: 'Missed',
+                  count: summary.missed,
+                  color: const Color(0xffb23b4b),
+                  onDecrease: summary.missed == 0
+                      ? null
+                      : pending ? null : () => onAdjust('absent', -1),
+                  onIncrease: pending ? null : () => onAdjust('absent', 1),
+                );
+                if (constraints.maxWidth < 340) {
+                  return Column(
+                    children: [
+                      attended,
+                      const SizedBox(height: 12),
+                      missed,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: attended),
+                    const SizedBox(width: 12),
+                    Expanded(child: missed),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttendanceCount extends StatelessWidget {
+  const _AttendanceCount({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$value',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    ),
+  );
+}
+
+class _AttendanceAdjuster extends StatelessWidget {
+  const _AttendanceAdjuster({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+  final VoidCallback? onDecrease;
+  final VoidCallback? onIncrease;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final shadow = (dark ? _darkShadow : _shadowDark).withValues(alpha: .62);
+    final highlight = (dark ? const Color(0xff4b5b6c) : Colors.white)
+        .withValues(alpha: dark ? .3 : .5);
+    return Container(
+    constraints: const BoxConstraints(minHeight: 54),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: shadow,
+          offset: const Offset(5, 5),
+          blurRadius: 10,
+        ),
+        BoxShadow(
+          color: highlight,
+          offset: const Offset(-5, -5),
+          blurRadius: 10,
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$label\n$count',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Semantics(
+          button: true,
+          label: 'Reduce ${label.toLowerCase()} classes',
+          child: IconButton(
+            onPressed: onDecrease,
+            icon: const Icon(Icons.remove),
+            color: color,
+            tooltip: 'Reduce ${label.toLowerCase()}',
+          ),
+        ),
+        Semantics(
+          button: true,
+          label: 'Add ${label.toLowerCase()} class',
+          child: IconButton(
+            onPressed: onIncrease,
+            icon: const Icon(Icons.add),
+            color: color,
+            tooltip: 'Add ${label.toLowerCase()}',
+          ),
+        ),
+      ],
+    ),
     );
   }
 }

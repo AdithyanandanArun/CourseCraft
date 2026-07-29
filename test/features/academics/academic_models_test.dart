@@ -8,6 +8,7 @@ void main() {
       name: 'Algorithms',
       code: null,
       credits: 4,
+      attendanceTarget: 75,
       assessments: const [
         Assessment(
           id: 'one',
@@ -35,6 +36,7 @@ void main() {
       name: 'Algorithms',
       code: null,
       credits: 4,
+      attendanceTarget: 75,
       assessments: const [
         Assessment(
           id: 'one',
