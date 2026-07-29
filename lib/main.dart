@@ -282,6 +282,37 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _requestPasswordReset() async {
+    final email = await _textPrompt(
+      context: context,
+      title: 'Reset password',
+      label: 'Email address',
+      initialValue: _emailController.text,
+    );
+    if (email == null || !mounted) return;
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+    try {
+      await widget.repository.requestPasswordReset(email);
+      if (mounted) {
+        setState(
+          () => _message =
+              'If an account exists for this email, a reset link is on its way.',
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Unable to send a reset email. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -352,6 +383,16 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ? 'Enter a valid email.'
                                 : null,
                           ),
+                          if (!_isSignUp)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _requestPasswordReset,
+                                child: const Text('Forgot password?'),
+                              ),
+                            ),
                           const SizedBox(height: 16),
                           TextFormField(
                             controller: _passwordController,
@@ -395,7 +436,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Text(
                               _isSignUp
                                   ? 'Already have an account? Sign in'
-                                  : 'New to CourseCraft? Create an account',
+                                  : 'Create a new account',
                             ),
                           ),
                         ],

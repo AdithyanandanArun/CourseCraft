@@ -38,5 +38,12 @@ class AuthRepository {
     return AppProfile.fromMap(Map<String, dynamic>.from(data as Map));
   }
 
+  Future<void> requestPasswordReset(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: _authRedirectUrl,
+    );
+  }
+
   Future<void> signOut() => _client.auth.signOut();
 }
