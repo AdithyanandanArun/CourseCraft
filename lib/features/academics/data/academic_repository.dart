@@ -17,20 +17,28 @@ class AcademicRepository {
         .limit(1)
         .maybeSingle();
     if (semesterData == null) {
-      return const AcademicSnapshot(semester: null, subjects: []);
+      return const AcademicSnapshot(
+        semester: null,
+        subjects: [],
+        attendanceBySubject: {},
+      );
     }
 
     final semester = Semester.fromMap(Map<String, dynamic>.from(semesterData));
     final subjectRows = await _client
         .from('subjects')
-        .select('id, name, code, credits')
+        .select('id, name, code, credits, attendance_target')
         .eq('semester_id', semester.id)
         .order('created_at');
     final subjects = (subjectRows as List)
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
     if (subjects.isEmpty) {
-      return AcademicSnapshot(semester: semester, subjects: const []);
+      return AcademicSnapshot(
+        semester: semester,
+        subjects: const [],
+        attendanceBySubject: const {},
+      );
     }
 
     final subjectIds = subjects
@@ -49,6 +57,45 @@ class AcademicRepository {
           .add(Assessment.fromMap(data));
     }
 
+    final attendanceRows = await _client
+        .from('attendance')
+        .select('subject_id, status')
+        .eq('space_id', spaceId)
+        .inFilter('subject_id', subjectIds);
+    final adjustmentRows = await _client
+        .from('attendance_adjustments')
+        .select('subject_id, attended_count, missed_count')
+        .eq('space_id', spaceId)
+        .inFilter('subject_id', subjectIds);
+    final attendedBySubject = <String, int>{};
+    final missedBySubject = <String, int>{};
+    for (final row in attendanceRows as List) {
+      final data = Map<String, dynamic>.from(row as Map);
+      final subjectId = data['subject_id'] as String;
+      if (data['status'] == 'present') {
+        attendedBySubject[subjectId] = (attendedBySubject[subjectId] ?? 0) + 1;
+      } else if (data['status'] == 'absent') {
+        missedBySubject[subjectId] = (missedBySubject[subjectId] ?? 0) + 1;
+      }
+    }
+    for (final row in adjustmentRows as List) {
+      final data = Map<String, dynamic>.from(row as Map);
+      final subjectId = data['subject_id'] as String;
+      attendedBySubject[subjectId] =
+          (attendedBySubject[subjectId] ?? 0) +
+          (data['attended_count'] as num).toInt();
+      missedBySubject[subjectId] =
+          (missedBySubject[subjectId] ?? 0) +
+          (data['missed_count'] as num).toInt();
+    }
+    final attendanceBySubject = <String, AttendanceSummary>{
+      for (final subjectId in subjectIds)
+        subjectId: AttendanceSummary(
+          attended: attendedBySubject[subjectId] ?? 0,
+          missed: missedBySubject[subjectId] ?? 0,
+        ),
+    };
+
     return AcademicSnapshot(
       semester: semester,
       subjects: subjects
@@ -59,6 +106,7 @@ class AcademicRepository {
             ),
           )
           .toList(),
+      attendanceBySubject: attendanceBySubject,
     );
   }
 
@@ -161,6 +209,23 @@ class AcademicRepository {
       'date': date,
       'status': status,
     }, onConflict: 'subject_id,date');
+  }
+
+  Future<void> adjustAttendance({
+    required String spaceId,
+    required String subjectId,
+    required String status,
+    required int delta,
+  }) async {
+    await _client.rpc(
+      'adjust_attendance',
+      params: {
+        'p_space_id': spaceId,
+        'p_subject_id': subjectId,
+        'p_status': status,
+        'p_delta': delta,
+      },
+    );
   }
 
   Future<void> addPlanningItem({
