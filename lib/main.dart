@@ -15,7 +15,7 @@ import 'features/auth/domain/app_profile.dart';
 
 const _surface = Color(0xffe0e5ec);
 const _ink = Color(0xff3d4852);
-const _muted = Color(0xff6b7280);
+const _muted = Color(0xff59636f);
 const _accent = Color(0xff6c63ff);
 const _shadowDark = Color(0xffa3b1c6);
 const _darkSurface = Color(0xff202833);
@@ -93,6 +93,15 @@ ThemeData _buildTheme(Brightness brightness) {
       foregroundColor: ink,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: surface,
+      indicatorColor: (dark ? const Color(0xffa9a4ff) : _accent).withValues(
+        alpha: .18,
+      ),
+      labelTextStyle: WidgetStatePropertyAll(
+        TextStyle(color: muted, fontWeight: FontWeight.w700),
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -282,6 +291,37 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _requestPasswordReset() async {
+    final email = await _textPrompt(
+      context: context,
+      title: 'Reset password',
+      label: 'Email address',
+      initialValue: _emailController.text,
+    );
+    if (email == null || !mounted) return;
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+    try {
+      await widget.repository.requestPasswordReset(email);
+      if (mounted) {
+        setState(
+          () => _message =
+              'If an account exists for this email, a reset link is on its way.',
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Unable to send a reset email. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -352,6 +392,16 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ? 'Enter a valid email.'
                                 : null,
                           ),
+                          if (!_isSignUp)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _requestPasswordReset,
+                                child: const Text('Forgot password?'),
+                              ),
+                            ),
                           const SizedBox(height: 16),
                           TextFormField(
                             controller: _passwordController,
@@ -395,7 +445,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Text(
                               _isSignUp
                                   ? 'Already have an account? Sign in'
-                                  : 'New to CourseCraft? Create an account',
+                                  : 'Create a new account',
                             ),
                           ),
                         ],
@@ -539,7 +589,7 @@ class StudentHome extends StatefulWidget {
 class _StudentHomeState extends State<StudentHome> {
   late final AcademicRepository _academics;
   late Future<AcademicSnapshot> _snapshot;
-  bool _showPlanning = false;
+  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -576,25 +626,68 @@ class _StudentHomeState extends State<StudentHome> {
           if (data.semester == null) {
             return _SemesterSetup(onCreate: _createSemester);
           }
-          if (_showPlanning) {
-            return _PlanningScreen(
-              academics: _academics,
-              spaceId: widget.profile.spaceId!,
-              semester: data.semester!,
-              subjects: data.subjects,
-              attendanceBySubject: data.attendanceBySubject,
-              onBack: () => setState(() => _showPlanning = false),
-              onImported: _refresh,
-            );
-          }
-          return _AcademicDashboard(
-            profile: widget.profile,
-            snapshot: data,
-            onAddSubject: () => _addSubject(data.semester!),
-            onAddAssessment: (subject) => _addAssessment(subject),
-            onOpenPlanning: () => setState(() => _showPlanning = true),
+          return IndexedStack(
+            index: _selectedTab,
+            children: [
+              _TodayTab(
+                profile: widget.profile,
+                snapshot: data,
+                onOpenSchedule: () => setState(() => _selectedTab = 2),
+                onOpenPlan: () => setState(() => _selectedTab = 3),
+              ),
+              _AcademicDashboard(
+                profile: widget.profile,
+                snapshot: data,
+                onAddSubject: () => _addSubject(data.semester!),
+                onAddAssessment: (subject) => _addAssessment(subject),
+              ),
+              _PlanningScreen(
+                academics: _academics,
+                spaceId: widget.profile.spaceId!,
+                semester: data.semester!,
+                subjects: data.subjects,
+                attendanceBySubject: data.attendanceBySubject,
+                planningTools: false,
+                onImported: _refresh,
+              ),
+              _PlanningScreen(
+                academics: _academics,
+                spaceId: widget.profile.spaceId!,
+                semester: data.semester!,
+                subjects: data.subjects,
+                attendanceBySubject: data.attendanceBySubject,
+                planningTools: true,
+                onImported: _refresh,
+              ),
+            ],
           );
         },
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) => setState(() => _selectedTab = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Today',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school),
+            label: 'Academics',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Schedule',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.checklist_outlined),
+            selectedIcon: Icon(Icons.checklist),
+            label: 'Plan',
+          ),
+        ],
       ),
     );
   }
@@ -642,6 +735,91 @@ class _StudentHomeState extends State<StudentHome> {
   }
 }
 
+class _TodayTab extends StatelessWidget {
+  const _TodayTab({
+    required this.profile,
+    required this.snapshot,
+    required this.onOpenSchedule,
+    required this.onOpenPlan,
+  });
+
+  final AppProfile profile;
+  final AcademicSnapshot snapshot;
+  final VoidCallback onOpenSchedule;
+  final VoidCallback onOpenPlan;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = profile.displayName.isEmpty ? 'there' : profile.displayName;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
+      children: [
+        Text('Hello, $name', style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 4),
+        Text('A focused view of your academic day.'),
+        const SizedBox(height: 24),
+        _SoftPanel(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _IconWell(icon: Icons.calendar_today_outlined, size: 24),
+              const SizedBox(height: 16),
+              Text(
+                'Today’s schedule',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 6),
+              const Text('Review classes and update attendance as you go.'),
+              const SizedBox(height: 16),
+              _PrimaryButton(
+                onPressed: onOpenSchedule,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Open schedule'),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _SoftPanel(
+          inset: true,
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              const _IconWell(icon: Icons.school_outlined, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${snapshot.subjects.length} subjects',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(snapshot.semester?.name ?? 'Current semester'),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onOpenPlan,
+                icon: const Icon(Icons.checklist_outlined),
+                tooltip: 'Open plan',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RetryState extends StatelessWidget {
   const _RetryState({required this.onRetry});
 
@@ -681,7 +859,7 @@ class _PlanningScreen extends StatefulWidget {
     required this.semester,
     required this.subjects,
     required this.attendanceBySubject,
-    required this.onBack,
+    required this.planningTools,
     required this.onImported,
   });
   final AcademicRepository academics;
@@ -689,7 +867,7 @@ class _PlanningScreen extends StatefulWidget {
   final Semester semester;
   final List<AcademicSubject> subjects;
   final Map<String, AttendanceSummary> attendanceBySubject;
-  final VoidCallback onBack;
+  final bool planningTools;
   final VoidCallback onImported;
 
   @override
@@ -918,151 +1096,156 @@ class _PlanningScreenState extends State<_PlanningScreen> {
     return FutureBuilder<List<TimetableSlot>>(
       future: _slots,
       builder: (context, snapshot) => ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
         children: [
           Row(
             children: [
-              IconButton(
-                onPressed: widget.onBack,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back to academics',
-              ),
               Expanded(
                 child: Text(
-                  'Academic planning',
+                  widget.planningTools ? 'Plan your week' : 'Schedule',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
-              _IconWellButton(
-                onPressed: _import,
-                icon: Icons.upload_file_outlined,
-                tooltip: 'Import timetable',
-              ),
-              const SizedBox(width: 8),
-              _IconWellButton(
-                onPressed: _deleteTimetable,
-                icon: Icons.delete_outline,
-                tooltip: 'Clear timetable',
-              ),
+              if (!widget.planningTools) ...[
+                _IconWellButton(
+                  onPressed: _import,
+                  icon: Icons.upload_file_outlined,
+                  tooltip: 'Import timetable',
+                ),
+                const SizedBox(width: 8),
+                _IconWellButton(
+                  onPressed: _deleteTimetable,
+                  icon: Icons.delete_outline,
+                  tooltip: 'Clear timetable',
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Import a timetable from AI-generated JSON. Mark attendance manually after each class.',
+          Text(
+            widget.planningTools
+                ? 'Capture tasks, habits, notes, and events for the week ahead.'
+                : 'Import a timetable from AI-generated JSON and keep attendance up to date.',
           ),
           const SizedBox(height: 22),
-          _SoftPanel(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Today’s timetable',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                if (snapshot.connectionState != ConnectionState.done)
-                  const _SoftLoadingIndicator()
-                else
-                  ...((snapshot.data ?? [])
-                      .where((slot) => slot.day == today)
-                      .map(
-                        (slot) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(slot.subjectName),
-                          subtitle: Text(
-                            '${slot.startTime.substring(0, 5)} - ${slot.endTime.substring(0, 5)}${slot.room == null ? '' : ' · ${slot.room}'}',
-                          ),
-                        ),
-                      )),
-                if (snapshot.connectionState == ConnectionState.done &&
-                    (snapshot.data ?? [])
-                        .where((slot) => slot.day == today)
-                        .isEmpty)
-                  const Text('No classes scheduled today.'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _SoftPanel(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Attendance',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 14),
-                for (final subject in widget.subjects)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _AttendanceSubjectCard(
-                      subject: subject,
-                      summary: widget.attendanceBySubject[subject.id] ??
-                          const AttendanceSummary(attended: 0, missed: 0),
-                      pending: _pendingAttendanceSubjects.contains(subject.id),
-                      onAdjust: (status, delta) =>
-                          _adjustAttendance(subject, status, delta),
-                    ),
+          if (!widget.planningTools) ...[
+            _SoftPanel(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Today’s timetable',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const _SoftLoadingIndicator()
+                  else
+                    ...((snapshot.data ?? [])
+                        .where((slot) => slot.day == today)
+                        .map(
+                          (slot) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(slot.subjectName),
+                            subtitle: Text(
+                              '${slot.startTime.substring(0, 5)} - ${slot.endTime.substring(0, 5)}${slot.room == null ? '' : ' · ${slot.room}'}',
+                            ),
+                          ),
+                        )),
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      (snapshot.data ?? [])
+                          .where((slot) => slot.day == today)
+                          .isEmpty)
+                    const Text('No classes scheduled today.'),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+            _SoftPanel(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Attendance',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 14),
+                  for (final subject in widget.subjects)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _AttendanceSubjectCard(
+                        subject: subject,
+                        summary:
+                            widget.attendanceBySubject[subject.id] ??
+                            const AttendanceSummary(attended: 0, missed: 0),
+                        pending: _pendingAttendanceSubjects.contains(
+                          subject.id,
+                        ),
+                        onAdjust: (status, delta) =>
+                            _adjustAttendance(subject, status, delta),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
-          _SoftPanel(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Plan your week',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Keep these personal planning tools in sync with your web workspace.',
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _addPlanningItem('tasks', 'Add task', 'Task'),
-                      icon: const Icon(Icons.checklist_outlined),
-                      label: const Text('Task'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _addPlanningItem(
-                        'habits',
-                        'Add habit',
-                        'Daily habit',
+          if (widget.planningTools)
+            _SoftPanel(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Plan your week',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Keep these personal planning tools in sync with your web workspace.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            _addPlanningItem('tasks', 'Add task', 'Task'),
+                        icon: const Icon(Icons.checklist_outlined),
+                        label: const Text('Task'),
                       ),
-                      icon: const Icon(Icons.repeat),
-                      label: const Text('Habit'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _addPlanningItem('notes', 'Add note', 'Note'),
-                      icon: const Icon(Icons.note_add_outlined),
-                      label: const Text('Note'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _addPlanningItem(
-                        'events',
-                        'Add calendar event',
-                        'Event title',
+                      OutlinedButton.icon(
+                        onPressed: () => _addPlanningItem(
+                          'habits',
+                          'Add habit',
+                          'Daily habit',
+                        ),
+                        icon: const Icon(Icons.repeat),
+                        label: const Text('Habit'),
                       ),
-                      icon: const Icon(Icons.event_outlined),
-                      label: const Text('Event'),
-                    ),
-                  ],
-                ),
-              ],
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            _addPlanningItem('notes', 'Add note', 'Note'),
+                        icon: const Icon(Icons.note_add_outlined),
+                        label: const Text('Note'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _addPlanningItem(
+                          'events',
+                          'Add calendar event',
+                          'Event title',
+                        ),
+                        icon: const Icon(Icons.event_outlined),
+                        label: const Text('Event'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -1209,7 +1392,10 @@ class _AttendanceSubjectCard extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      _AttendanceCount(label: 'Attended', value: summary.attended),
+                      _AttendanceCount(
+                        label: 'Attended',
+                        value: summary.attended,
+                      ),
                       _AttendanceCount(label: 'Missed', value: summary.missed),
                       _AttendanceCount(label: 'Total', value: summary.total),
                     ],
@@ -1258,7 +1444,9 @@ class _AttendanceSubjectCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              summary.total == 0 ? '---' : '${percentage.round()}%',
+                              summary.total == 0
+                                  ? '---'
+                                  : '${percentage.round()}%',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             Text(
@@ -1282,7 +1470,9 @@ class _AttendanceSubjectCard extends StatelessWidget {
                   color: const Color(0xff238b85),
                   onDecrease: summary.attended == 0
                       ? null
-                      : pending ? null : () => onAdjust('present', -1),
+                      : pending
+                      ? null
+                      : () => onAdjust('present', -1),
                   onIncrease: pending ? null : () => onAdjust('present', 1),
                 );
                 final missed = _AttendanceAdjuster(
@@ -1291,16 +1481,14 @@ class _AttendanceSubjectCard extends StatelessWidget {
                   color: const Color(0xffb23b4b),
                   onDecrease: summary.missed == 0
                       ? null
-                      : pending ? null : () => onAdjust('absent', -1),
+                      : pending
+                      ? null
+                      : () => onAdjust('absent', -1),
                   onIncrease: pending ? null : () => onAdjust('absent', 1),
                 );
                 if (constraints.maxWidth < 340) {
                   return Column(
-                    children: [
-                      attended,
-                      const SizedBox(height: 12),
-                      missed,
-                    ],
+                    children: [attended, const SizedBox(height: 12), missed],
                   );
                 }
                 return Row(
@@ -1364,56 +1552,52 @@ class _AttendanceAdjuster extends StatelessWidget {
     final highlight = (dark ? const Color(0xff4b5b6c) : Colors.white)
         .withValues(alpha: dark ? .3 : .5);
     return Container(
-    constraints: const BoxConstraints(minHeight: 54),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: shadow,
-          offset: const Offset(5, 5),
-          blurRadius: 10,
-        ),
-        BoxShadow(
-          color: highlight,
-          offset: const Offset(-5, -5),
-          blurRadius: 10,
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$label\n$count',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
+      constraints: const BoxConstraints(minHeight: 54),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: shadow, offset: const Offset(5, 5), blurRadius: 10),
+          BoxShadow(
+            color: highlight,
+            offset: const Offset(-5, -5),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$label\n$count',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ),
-        Semantics(
-          button: true,
-          label: 'Reduce ${label.toLowerCase()} classes',
-          child: IconButton(
-            onPressed: onDecrease,
-            icon: const Icon(Icons.remove),
-            color: color,
-            tooltip: 'Reduce ${label.toLowerCase()}',
+          Semantics(
+            button: true,
+            label: 'Reduce ${label.toLowerCase()} classes',
+            child: IconButton(
+              onPressed: onDecrease,
+              icon: const Icon(Icons.remove),
+              color: color,
+              tooltip: 'Reduce ${label.toLowerCase()}',
+            ),
           ),
-        ),
-        Semantics(
-          button: true,
-          label: 'Add ${label.toLowerCase()} class',
-          child: IconButton(
-            onPressed: onIncrease,
-            icon: const Icon(Icons.add),
-            color: color,
-            tooltip: 'Add ${label.toLowerCase()}',
+          Semantics(
+            button: true,
+            label: 'Add ${label.toLowerCase()} class',
+            child: IconButton(
+              onPressed: onIncrease,
+              icon: const Icon(Icons.add),
+              color: color,
+              tooltip: 'Add ${label.toLowerCase()}',
+            ),
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
     );
   }
 }
@@ -1424,14 +1608,12 @@ class _AcademicDashboard extends StatelessWidget {
     required this.snapshot,
     required this.onAddSubject,
     required this.onAddAssessment,
-    required this.onOpenPlanning,
   });
 
   final AppProfile profile;
   final AcademicSnapshot snapshot;
   final VoidCallback onAddSubject;
   final Future<void> Function(AcademicSubject) onAddAssessment;
-  final VoidCallback onOpenPlanning;
 
   @override
   Widget build(BuildContext context) {
@@ -1448,7 +1630,7 @@ class _AcademicDashboard extends StatelessWidget {
     final name = profile.displayName.isEmpty ? 'Student' : profile.displayName;
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
       children: [
         Text('Hello, $name', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 4),
@@ -1479,35 +1661,6 @@ class _AcademicDashboard extends StatelessWidget {
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _SoftPanel(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              const _IconWell(icon: Icons.calendar_month_outlined, size: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Academic planning',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text(
-                      'Timetable, attendance, tasks, habits, notes, and calendar.',
-                    ),
-                  ],
-                ),
-              ),
-              _IconWellButton(
-                onPressed: onOpenPlanning,
-                icon: Icons.arrow_forward,
-                tooltip: 'Open planning',
               ),
             ],
           ),
